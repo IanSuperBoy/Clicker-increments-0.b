@@ -30,8 +30,8 @@ UPGRADES = {
     'click': {
         'name': 'Усиление клика',
         'base_cost': 10,
-        'cost_multiplier': 1.8,
-        'effect': 1.5,  # добавляет +1 к множителю клика
+        'cost_multiplier': 3,
+        'effect': 2,  # добавляет +1 к множителю клика
         'level': 0,
         'description': '+1 к множителю клика'
     },
@@ -55,7 +55,7 @@ UPGRADES = {
 
 # Настройка экрана
 screen = pygame.display.set_mode((WIDTH, HEIGHT))
-pygame.display.set_caption("Clicker increments 0.α")
+pygame.display.set_caption("Clicker increments 0.β")
 clock = pygame.time.Clock()
 
 # Шрифты
@@ -72,6 +72,7 @@ auto_income = 0
 last_auto_time = pygame.time.get_ticks()
 sound_enabled = True
 fps_index = AVAILABLE_FPS.index(FPS)
+per = 2
 
 
 # Загрузка звуковых файлов
@@ -88,9 +89,18 @@ def load_sound(file_path):
         return None
 
 
+def format(a):
+	if a < 10 ** 6:
+		return math.floor(a * 10 ** per)/10 ** per
+	else:
+		return str(math.floor((a / (10 ** (math.floor(len(str(a)) - 4)))) * (10 ** per)) / 1000) + "e" + str(math.floor(len(str(a)) - 3))
+
+
 # Укажите пути к вашим MP3 файлам
+ERROR = load_sound("error.mp3")  # Звук клика
 SOUND_CLICK = load_sound("click.mp3")  # Звук клика
 SOUND_UPGRADE = load_sound("upgrade.mp3")  # Звук улучшения
+REBIRTH = load_sound("rebirth.wav")  # Звук улучшения
 
 # Звуковые эффекты с использованием MP3 файлов
 def play_click_sound():
@@ -100,21 +110,6 @@ def play_click_sound():
     if SOUND_CLICK:
         try:
             SOUND_CLICK.play()
-        except:
-            pass
-    else:
-        # Альтернатива: если файл не загружен, используем простой звук через pygame
-        try:
-            sample_rate = 44100
-            duration = 0.1
-            frequency = 440
-            samples = int(sample_rate * duration)
-            waves = []
-            for i in range(samples):
-                value = int(32767 * 0.3 * math.sin(2 * math.pi * frequency * i / sample_rate))
-                waves.append([value, value])
-            sound = pygame.sndarray.make_sound(waves)
-            sound.play()
         except:
             pass
 
@@ -128,19 +123,15 @@ def play_upgrade_sound():
             SOUND_UPGRADE.play()
         except:
             pass
-    else:
-        # Альтернатива: если файл не загружен, используем простой звук через pygame
+
+
+def play_error_sound():
+    if not sound_enabled:
+        return
+
+    if ERROR:
         try:
-            sample_rate = 44100
-            duration = 0.2
-            frequency = 880
-            samples = int(sample_rate * duration)
-            waves = []
-            for i in range(samples):
-                value = int(32767 * 0.4 * math.sin(2 * math.pi * frequency * i / sample_rate))
-                waves.append([value, value])
-            sound = pygame.sndarray.make_sound(waves)
-            sound.play()
+            ERROR.play()
         except:
             pass
 
@@ -150,7 +141,7 @@ def get_upgrade_cost(upgrade_type):
     """Возвращает текущую стоимость улучшения"""
     upgrade = UPGRADES[upgrade_type]
     if upgrade_type == "exp":
-        return 1000000 ** ((((click_exponent ** 1.5) * 3.5) - 2) / 3)
+        return 1000000 ** ((((click_exponent ** 2) * 3.5) - 2) / 3)
     else:
         return int(upgrade['base_cost'] * (upgrade['cost_multiplier'] ** upgrade['level']))
 
@@ -175,6 +166,7 @@ def buy_upgrade(upgrade_type):
 
         play_upgrade_sound()
         return True
+    play_error_sound()
     return False
 
 
@@ -195,6 +187,9 @@ def update_auto_income():
         click_count += (click_multiplier * frames * auto_income) ** click_exponent / FPS
         last_auto_time = current_time
 
+
+def change_per():
+    return per % 4 + 1
 
 # Кнопки
 class Button:
@@ -263,6 +258,12 @@ fps_btn = Button(
     (130, 70, 130), (150, 90, 150)
 )
 
+per_btn = Button(
+    WIDTH - 120, 140, 100, 50,
+    "Change\nprecision",
+    (70, 70, 130), (90, 90, 150)
+)
+
 
 def draw_circle(mouse_pos):
     """Рисует круг с простым градиентом через несколько слоев"""
@@ -307,13 +308,12 @@ def draw_circle(mouse_pos):
 def draw_stats():
     """Рисует статистику"""
     # Счетчик кликов
-    text = main_font.render(str(math.floor(click_count)) + "$", True, TEXT_COLOR)
+    text = main_font.render(str(format(click_count)) + "$", True, TEXT_COLOR)
     text_rect = text.get_rect(center=(circle_x, circle_y - 200))
     screen.blit(text, text_rect)
 
     # Информация о множителе клика
-    SCM = math.floor(click_multiplier * 1000) / 1000
-    click_info = medium_font.render(f"Multiplier: x{SCM}", True, (255, 100, 100))
+    click_info = medium_font.render(f"Multiplier: x{format(click_multiplier)}", True, (255, 100, 100))
     screen.blit(click_info, (circle_x - click_info.get_width() // 2, circle_y + CIRCLE_RADIUS + 10))
 
     # Информация об автокликере
@@ -322,15 +322,18 @@ def draw_stats():
         screen.blit(auto_info, (circle_x - auto_info.get_width() // 2, circle_y + CIRCLE_RADIUS + 35))
 
     if click_exponent > 1:
-        exp_info = medium_font.render(f"$ gain raised by {click_exponent}", True, (230, 50, 230))
+        exp_info = medium_font.render(f"$ gain raised by {int(click_exponent * 100) / 100}", True, (230, 50, 230))
         screen.blit(exp_info, (circle_x - exp_info.get_width() // 2, circle_y + CIRCLE_RADIUS + 60))
 
     # Подсказка
-    hint = small_font.render("Hotkeys: ESC - Exit, F - Change FPS", True, TEXT_COLOR)
+    hint = small_font.render("Hotkeys: ESC - Exit, F - Change FPS, P - Change precision", True, TEXT_COLOR)
     screen.blit(hint, (WIDTH // 2 - hint.get_width() // 2, HEIGHT - 30))
 
     hint2 = small_font.render(f"FPS: {FPS}", True, TEXT_COLOR)
     screen.blit(hint2, (circle_x - hint2.get_width() // 2, circle_y + CIRCLE_RADIUS + 230))
+
+    hint3 = small_font.render("v0.β", True, TEXT_COLOR)
+    screen.blit(hint3, (circle_x - hint3.get_width() // 2, circle_y + CIRCLE_RADIUS - 410))
 
 
 def update_upgrade_buttons():
@@ -344,7 +347,7 @@ def update_upgrade_buttons():
     exp_cost = get_upgrade_cost('exp')
 
     # Кнопка усиления клика
-    click_upgrade_btn.text = f"*1.5 multiplier\nLevel {click_upgrade['level']} | {click_cost}$"
+    click_upgrade_btn.text = f"*2 multiplier\nLevel {click_upgrade['level']} | {format(click_cost)}$"
     if click_count >= click_cost:
         click_upgrade_btn.color = (50, 150, 50)
         click_upgrade_btn.hover_color = (70, 170, 70)
@@ -353,7 +356,7 @@ def update_upgrade_buttons():
         click_upgrade_btn.hover_color = (240, 120, 120)
 
     # Кнопка автокликера
-    auto_upgrade_btn.text = f"+1 clicks/sec\nLevel {auto_upgrade['level']} | {auto_cost}$"
+    auto_upgrade_btn.text = f"+1 clicks/sec\nLevel {auto_upgrade['level']} | {format(auto_cost)}$"
     if click_count >= auto_cost:
         auto_upgrade_btn.color = (50, 150, 50)
         auto_upgrade_btn.hover_color = (70, 170, 70)
@@ -361,7 +364,7 @@ def update_upgrade_buttons():
         auto_upgrade_btn.color = (240, 100, 100)
         auto_upgrade_btn.hover_color = (240, 120, 120)
 
-    exp_upgrade_btn.text = f"+^0.05 exponent\nLevel {exp_upgrade['level']} | {math.floor(exp_cost)}$"
+    exp_upgrade_btn.text = f"+^0.05 exponent\nLevel {exp_upgrade['level']} | {format(exp_cost)}$"
     if click_count >= exp_cost:
         exp_upgrade_btn.color = (50, 150, 50)
         exp_upgrade_btn.hover_color = (70, 170, 70)
@@ -381,7 +384,7 @@ def update_upgrade_buttons():
 
 def check_click(mouse_pos):
     """Проверяет клик по кругу"""
-    global click_count
+    global click_count, per
     distance = ((mouse_pos[0] - circle_x) ** 2 + (mouse_pos[1] - circle_y) ** 2) ** 0.5
     if distance < CIRCLE_RADIUS:
         click_count += click_multiplier ** click_exponent
@@ -429,8 +432,11 @@ while running:
                     buy_upgrade('exp')
                 elif sound_btn.is_clicked(mouse_pos):
                     sound_enabled = not sound_enabled
+                    play_click_sound()
                 elif fps_btn.is_clicked(mouse_pos):
                     change_fps()
+                elif per_btn.is_clicked(mouse_pos):
+                    per = change_per()
                 else:
                     check_click(mouse_pos)
         elif event.type == pygame.KEYDOWN:
@@ -438,6 +444,8 @@ while running:
                 running = False
             elif event.key == pygame.K_f:  # Горячая клавиша F для смены FPS
                 change_fps()
+            elif event.key == pygame.K_p:
+                per = change_per()
 
 
     # Отрисовка
@@ -449,6 +457,7 @@ while running:
     exp_upgrade_btn.draw(screen, small_font, mouse_pos)
     sound_btn.draw(screen, small_font, mouse_pos)
     fps_btn.draw(screen, small_font, mouse_pos)
+    per_btn.draw(screen, small_font, mouse_pos)
 
     # Рисуем круг
     draw_circle(mouse_pos)
