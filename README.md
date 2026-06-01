@@ -6,3 +6,4 @@ Contents:
 - Scientific notation
 - Advanced passive gain
 - FPS, sound, precision buttons
+- Everything related about rebirths except upgrades
